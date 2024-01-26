@@ -106,12 +106,12 @@ int main() {
 
   AddVectoredExceptionHandler(false, (PVECTORED_EXCEPTION_HANDLER)VectoredExceptionHandler);
 
-  LIST_ENTRY* pListHead = &resolvedVehList->LdrpVehList;
+  LIST_ENTRY* listHead = &resolvedVehList->LdrpVehList;
 
-  std::cout << "-----------------------------\n";
+  std::cout << "---------------------------------------\n";
 
-  for (LIST_ENTRY* pListEntry = pListHead->Flink; pListEntry != pListHead; pListEntry = pListEntry->Flink) {
-    PVECTOR_HANDLER_ENTRY pEntry            = CONTAINING_RECORD(pListEntry, VECTOR_HANDLER_ENTRY, ListEntry);
+  for (LIST_ENTRY* entry = listHead->Flink; entry != listHead; entry = entry->Flink) {
+    PVECTOR_HANDLER_ENTRY pEntry            = CONTAINING_RECORD(entry, VECTOR_HANDLER_ENTRY, ListEntry);
     LPVOID                pExceptionHandler = RebuiltDecodePointer(pEntry->EncodedHandler);
 
     TCHAR modName[MAX_PATH];
@@ -120,7 +120,7 @@ int main() {
     std::printf("VEH Ptr: 0x%p | Module: %ws\n", pExceptionHandler, modName);
   }
 
-  std::cout << "-----------------------------\n";
+  std::cout << "---------------------------------------\n";
 
   std::printf("VEHs parsed!\n");
 
