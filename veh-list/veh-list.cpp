@@ -27,8 +27,9 @@ T Read(DWORD64 address) {
   return buffer;
 }
 
-auto Rel32ToAbs(void* adr, uint64_t instrSize) -> void* {
-  uint8_t* next = reinterpret_cast<decltype(next)>(adr) + instrSize;
+PVOID Rel32ToAbs(void* address, uint64_t instructionSize) {
+  uint8_t* next = reinterpret_cast<decltype(next)>(address) + instructionSize;
+
   return next + (*reinterpret_cast<uint32_t*>(next - 4));
 }
 
