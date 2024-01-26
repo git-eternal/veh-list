@@ -130,6 +130,7 @@
     <ClCompile Include="veh-list.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ida.hpp" />
     <ClInclude Include="structs.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

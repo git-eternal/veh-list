@@ -4,22 +4,20 @@
 #include <winternl.h>
 #include "structs.hpp"
 
-#pragma pack(2)
-// https://github.com/Maktm/hadesmem/blob/master/include/memory/hadesmem/detail/winternl.hpp#L985
-typedef struct LdrpVectorHandlerEntry {
-  LdrpVectorHandlerEntry* Next;
-  LdrpVectorHandlerEntry* Prev;
-  ULONG                   Refs;
-  PVOID                   Handler;
-} VECTORED_HANDLER_ENTRY, *PVECTORED_HANDLER_ENTRY;
+typedef struct _LDRP_VECTOR_HANDLER_LIST {
+  PSRWLOCK   LdrpVehLock;
+  LIST_ENTRY LdrpVehList;
+  PSRWLOCK   LdrpVchLock;
+  LIST_ENTRY LdrpVchList;
+} LDRP_VECTOR_HANDLER_LIST, *PLDRP_VECTOR_HANDLER_LIST;
 
-#pragma pack(2)
-// https://github.com/Maktm/hadesmem/blob/master/include/memory/hadesmem/detail/winternl.hpp#L995
-typedef struct LdrpVectorHandlerList {
-  SRWLOCK                 SrwLock;
-  LdrpVectorHandlerEntry* First;
-  LdrpVectorHandlerEntry* Last;
-} VECTORED_HANDLER_LIST, *PVECTORED_HANDLER_LIST;
+typedef struct _VECTOR_HANDLER_ENTRY {
+  LIST_ENTRY ListEntry;
+  PLONG64    pRefCount;  // ProcessHeap allocated, initialized with 1
+  DWORD      unk_0;      // always 0
+  DWORD      pad_0;
+  PVOID      EncodedHandler;
+} VECTOR_HANDLER_ENTRY, *PVECTOR_HANDLER_ENTRY;
 
 template<typename T>
 T Read(DWORD64 address) {
@@ -67,6 +65,8 @@ ULONG GetProcessCookie() {
 }
 // clang-format on
 
+#include "ida.hpp"
+
 PVOID RebuiltDecodePointer(PVOID pointer) {
   static ULONG processCookie = 0;
 
@@ -79,7 +79,7 @@ PVOID RebuiltDecodePointer(PVOID pointer) {
 
   std::cout << "Process cookie: " << processCookie << '\n';
 
-  return (PVOID)(RotateRight64((ULONG_PTR)pointer, 0x40 - (processCookie & 0x3f)) ^ processCookie);
+  return (LPVOID)(__ROL8__((ULONGLONG)pointer, processCookie & 0x3F) ^ processCookie);
 }
 
 int main() {
@@ -96,41 +96,52 @@ int main() {
 
   // Signature (for later): 48 8D 3D CE 6D 11 00
   // .text:0000000000084633                 lea     rdi, LdrpVectorHandlerList
-  LdrpVectorHandlerList* pVehList = reinterpret_cast<LdrpVectorHandlerList*>((uintptr_t)pNtdll + 0x84633);
+  PLDRP_VECTOR_HANDLER_LIST pVehList = reinterpret_cast<PLDRP_VECTOR_HANDLER_LIST>((uintptr_t)pNtdll + 0x84633);
 
   // Resolve the real address of the VEH list (as its pointer is rip relative)
-  VECTORED_HANDLER_LIST* resolvedVehList = (VECTORED_HANDLER_LIST*)Rel32ToAbs(pVehList, 0x7);
+  PLDRP_VECTOR_HANDLER_LIST resolvedVehList = (PLDRP_VECTOR_HANDLER_LIST)Rel32ToAbs(pVehList, 0x7);
 
   std::printf("VEH list PTR: 0x%p\n", pVehList);
   std::printf("Real VEH list: 0x%p\n", resolvedVehList);
 
   AddVectoredExceptionHandler(false, (PVECTORED_EXCEPTION_HANDLER)VectoredExceptionHandler);
 
-  VECTORED_HANDLER_ENTRY* currentEntry = resolvedVehList->First;
+  LIST_ENTRY* pListHead = &resolvedVehList->LdrpVehList;
 
-  // Check if list is empty
-  if ((uint64_t)resolvedVehList->First == (uint64_t)resolvedVehList + sizeof(uint64_t)) {
-    std::cout << "VEH List is empty!\n";
-    return 0;
+  for (LIST_ENTRY* pListEntry = pListHead->Flink; pListEntry != pListHead; pListEntry = pListEntry->Flink) {
+    PVECTOR_HANDLER_ENTRY pEntry            = CONTAINING_RECORD(pListEntry, VECTOR_HANDLER_ENTRY, ListEntry);
+    LPVOID                pExceptionHandler = DecodePointer(pEntry->EncodedHandler);
+
+    std::cout << "decoded VEH: " << pExceptionHandler << '\n';
+
+    // do something with the pointer
   }
 
-  std::cout << "VEH Entries: \n";
+  // VECTORED_HANDLER_ENTRY* currentEntry = resolvedVehList->First;
 
-  std::cout << "-----------------------------\n";
-  while (currentEntry != nullptr) {
-    auto nextEntry = currentEntry->Next;
+  //// Check if list is empty
+  // if ((uint64_t)resolvedVehList->First == (uint64_t)resolvedVehList + sizeof(uint64_t)) {
+  //   std::cout << "VEH List is empty!\n";
+  //   return 0;
+  // }
 
-    currentEntry = nextEntry;
+  // std::cout << "VEH Entries: \n";
 
-    std::cout << "Current VEH: " << RebuiltDecodePointer(currentEntry->Handler) << '\n';
+  // std::cout << "-----------------------------\n";
+  // while (currentEntry != nullptr) {
+  //   auto nextEntry = currentEntry->Next;
 
-    // Check if we've reached the end of the list
-    if (nextEntry == resolvedVehList->First)
-      break;
-  }
-  std::cout << "-----------------------------\n";
+  //  currentEntry = nextEntry;
 
-  std::printf("VEHs parsed!");
+  //  std::cout << "Current VEH: " << RebuiltDecodePointer(currentEntry->Handler) << '\n';
+
+  //  // Check if we've reached the end of the list
+  //  if (nextEntry == resolvedVehList->First)
+  //    break;
+  //}
+  // std::cout << "-----------------------------\n";
+
+  // std::printf("VEHs parsed!");
 
   system("pause");
 
