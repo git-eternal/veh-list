@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <WinBase.h>
 #include <winternl.h>
+#include <format>
 #include "structs.hpp"
 
 typedef struct _LDRP_VECTOR_HANDLER_LIST {
@@ -67,6 +68,7 @@ ULONG GetProcessCookie() {
 
 #include "ida.hpp"
 
+// Rebuilt decode pointer function from IDA (ntdll)
 PVOID RebuiltDecodePointer(PVOID pointer) {
   static ULONG processCookie = 0;
 
@@ -76,8 +78,6 @@ PVOID RebuiltDecodePointer(PVOID pointer) {
     if (!processCookie)
       return 0;
   }
-
-  std::cout << "Process cookie: " << processCookie << '\n';
 
   return (LPVOID)(__ROL8__((ULONGLONG)pointer, processCookie & 0x3F) ^ processCookie);
 }
@@ -96,10 +96,10 @@ int main() {
 
   // Signature (for later): 48 8D 3D CE 6D 11 00
   // .text:0000000000084633                 lea     rdi, LdrpVectorHandlerList
-  PLDRP_VECTOR_HANDLER_LIST pVehList = reinterpret_cast<PLDRP_VECTOR_HANDLER_LIST>((uintptr_t)pNtdll + 0x84633);
+  auto pVehList = reinterpret_cast<PLDRP_VECTOR_HANDLER_LIST>((uintptr_t)pNtdll + 0x84633);
 
   // Resolve the real address of the VEH list (as its pointer is rip relative)
-  PLDRP_VECTOR_HANDLER_LIST resolvedVehList = (PLDRP_VECTOR_HANDLER_LIST)Rel32ToAbs(pVehList, 0x7);
+  auto resolvedVehList = (PLDRP_VECTOR_HANDLER_LIST)Rel32ToAbs(pVehList, 0x7);
 
   std::printf("VEH list PTR: 0x%p\n", pVehList);
   std::printf("Real VEH list: 0x%p\n", resolvedVehList);
@@ -108,40 +108,21 @@ int main() {
 
   LIST_ENTRY* pListHead = &resolvedVehList->LdrpVehList;
 
+  std::cout << "-----------------------------\n";
+
   for (LIST_ENTRY* pListEntry = pListHead->Flink; pListEntry != pListHead; pListEntry = pListEntry->Flink) {
     PVECTOR_HANDLER_ENTRY pEntry            = CONTAINING_RECORD(pListEntry, VECTOR_HANDLER_ENTRY, ListEntry);
-    LPVOID                pExceptionHandler = DecodePointer(pEntry->EncodedHandler);
+    LPVOID                pExceptionHandler = RebuiltDecodePointer(pEntry->EncodedHandler);
 
-    std::cout << "decoded VEH: " << pExceptionHandler << '\n';
+    TCHAR modName[MAX_PATH];
+    GetModuleNameFromAddress((HANDLE)-1, pExceptionHandler, modName);
 
-    // do something with the pointer
+    std::printf("VEH Ptr: 0x%p | Module: %ws\n", pExceptionHandler, modName);
   }
 
-  // VECTORED_HANDLER_ENTRY* currentEntry = resolvedVehList->First;
+  std::cout << "-----------------------------\n";
 
-  //// Check if list is empty
-  // if ((uint64_t)resolvedVehList->First == (uint64_t)resolvedVehList + sizeof(uint64_t)) {
-  //   std::cout << "VEH List is empty!\n";
-  //   return 0;
-  // }
-
-  // std::cout << "VEH Entries: \n";
-
-  // std::cout << "-----------------------------\n";
-  // while (currentEntry != nullptr) {
-  //   auto nextEntry = currentEntry->Next;
-
-  //  currentEntry = nextEntry;
-
-  //  std::cout << "Current VEH: " << RebuiltDecodePointer(currentEntry->Handler) << '\n';
-
-  //  // Check if we've reached the end of the list
-  //  if (nextEntry == resolvedVehList->First)
-  //    break;
-  //}
-  // std::cout << "-----------------------------\n";
-
-  // std::printf("VEHs parsed!");
+  std::printf("VEHs parsed!\n");
 
   system("pause");
 

@@ -1,5 +1,9 @@
 #pragma once
 
+#include <TlHelp32.h>
+#include <Psapi.h>
+#include <tchar.h>
+
 typedef enum class _REALPROCESSINFOCLASS {
   ProcessBasicInformation,            // q: PROCESS_BASIC_INFORMATION, PROCESS_EXTENDED_BASIC_INFORMATION
   ProcessQuotaLimits,                 // qs: QUOTA_LIMITS, QUOTA_LIMITS_EX
@@ -115,3 +119,37 @@ typedef enum class _REALPROCESSINFOCLASS {
   ProcessEffectivePagePriority,  // q: ULONG
   MaxProcessInfoClass
 } PIC;
+
+inline BOOL GetModuleNameFromAddress(HANDLE hProcess, PVOID pvPoint, TCHAR *modName) {
+  DWORD   dwRet, dwMods;
+  HMODULE hModule[4096];
+
+  // Enumerate the process modules
+  if (EnumProcessModules(hProcess, hModule, 4096 * sizeof(HMODULE), &dwRet) == FALSE) {
+    std::printf("Failed to enumerate modules\n");
+    return FALSE;
+  }
+
+  dwMods = dwRet / sizeof(HMODULE);
+
+  DWORD modCount = 0;
+
+  for (modCount = 0; modCount < dwMods; modCount++) {
+    TCHAR cModule[MAX_PATH];  // Process name
+    GetModuleBaseName(hProcess, hModule[modCount], cModule, MAX_PATH);
+
+    MODULEINFO modNFO;
+
+    if (GetModuleInformation(hProcess, hModule[modCount], &modNFO, sizeof(modNFO)) == TRUE) {
+      DWORD64 dwAddress = (DWORD64)pvPoint;
+
+      // Make sure the function is the expected range
+      if (dwAddress > (DWORD64)modNFO.lpBaseOfDll && dwAddress < ((DWORD64)modNFO.lpBaseOfDll + modNFO.SizeOfImage)) {
+        _tcscpy_s(modName, MAX_PATH, cModule);
+        return TRUE;
+      }
+    }
+  }
+
+  return FALSE;
+}
