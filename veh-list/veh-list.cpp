@@ -14,8 +14,8 @@ typedef struct _LDRP_VECTOR_HANDLER_LIST {
 
 typedef struct _VECTOR_HANDLER_ENTRY {
   LIST_ENTRY ListEntry;
-  PLONG64    pRefCount;  // ProcessHeap allocated, initialized with 1
-  DWORD      unk_0;      // always 0
+  PLONG64    pRefCount;
+  DWORD      unk_0;
   DWORD      pad_0;
   PVOID      EncodedHandler;
 } VECTOR_HANDLER_ENTRY, *PVECTOR_HANDLER_ENTRY;
