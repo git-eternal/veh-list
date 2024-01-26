@@ -43,28 +43,27 @@ typedef NTSTATUS(NTAPI* NtQueryInformationProcess_t)(HANDLE ProcessHandle,
     ULONG                                                   ProcessInformationLength,
     PULONG                                                  ReturnLength);
 
-// clang-format off
 ULONG GetProcessCookie() {
   ULONG cookie    = 0;
   DWORD retLength = 0;
 
   HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 
-  NtQueryInformationProcess_t NtQueryInformationProcess = 
+  NtQueryInformationProcess_t NtQueryInformationProcess =
       reinterpret_cast<NtQueryInformationProcess_t>(
           GetProcAddress(ntdll, "NtQueryInformationProcess"));
 
-  NTSTATUS success = NtQueryInformationProcess(
-      GetCurrentProcess(), 
-      (PROCESSINFOCLASS)PIC::ProcessCookie, 
-      &cookie, sizeof(cookie), &retLength);
+  NTSTATUS success = NtQueryInformationProcess(GetCurrentProcess(),
+      (PROCESSINFOCLASS)PIC::ProcessCookie,
+      &cookie,
+      sizeof(cookie),
+      &retLength);
 
   if (success < 0)
     return 0;
 
   return cookie;
 }
-// clang-format on
 
 #include "ida.hpp"
 
@@ -90,7 +89,8 @@ int main() {
   //
   // .text:0000000000084510                 xor     r8d, r8d
   // .text:0000000000084513                 jmp     RtlpAddVectoredHandler
-  BYTE* RtlpAddVectoredHandler = reinterpret_cast<BYTE*>(GetProcAddress(pNtdll, "RtlAddVectoredExceptionHandler")) + 0x3;
+  BYTE* RtlpAddVectoredHandler =
+      reinterpret_cast<BYTE*>(GetProcAddress(pNtdll, "RtlAddVectoredExceptionHandler")) + 0x3;
 
   std::printf("RtlpAddVectoredHandler: 0x%p\n", RtlpAddVectoredHandler);
 
@@ -110,14 +110,18 @@ int main() {
 
   std::cout << "---------------------------------------\n";
 
-  for (LIST_ENTRY* entry = listHead->Flink; entry != listHead; entry = entry->Flink) {
-    PVECTOR_HANDLER_ENTRY pEntry            = CONTAINING_RECORD(entry, VECTOR_HANDLER_ENTRY, ListEntry);
-    LPVOID                pExceptionHandler = RebuiltDecodePointer(pEntry->EncodedHandler);
+  while (true) {
+    Sleep(3000);
 
-    TCHAR modName[MAX_PATH];
-    GetModuleNameFromAddress((HANDLE)-1, pExceptionHandler, modName);
+    for (LIST_ENTRY* entry = listHead->Flink; entry != listHead; entry = entry->Flink) {
+      PVECTOR_HANDLER_ENTRY pEntry = CONTAINING_RECORD(entry, VECTOR_HANDLER_ENTRY, ListEntry);
+      LPVOID                pExceptionHandler = RebuiltDecodePointer(pEntry->EncodedHandler);
 
-    std::printf("VEH Ptr: 0x%p | Module: %ws\n", pExceptionHandler, modName);
+      TCHAR modName[MAX_PATH];
+      GetModuleNameFromAddress((HANDLE)-1, pExceptionHandler, modName);
+
+      std::printf("VEH Ptr: 0x%p | Module: %ws\n", pExceptionHandler, modName);
+    }
   }
 
   std::cout << "---------------------------------------\n";

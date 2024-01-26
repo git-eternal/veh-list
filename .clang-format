@@ -21,7 +21,7 @@ AllowShortLoopsOnASingleLine: false
 BinPackArguments: false
 BinPackParameters: false
 BreakBeforeBraces: Attach
-ColumnLimit: 180
+ColumnLimit: 100
 Cpp11BracedListStyle: false
 IndentCaseLabels: false
 NamespaceIndentation: Inner
